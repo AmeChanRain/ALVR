@@ -11,12 +11,6 @@ use alvr_sockets::{
     spawn_cancelable, ClientConfigPacket, ClientControlPacket, ClientHandshakePacket, Haptics,
     HeadsetInfoPacket, PeerType, ProtoControlSocket, ServerControlPacket, ServerHandshakePacket,
     StreamSocketBuilder, VideoFrameHeaderPacket, AUDIO, HAPTICS, INPUT, VIDEO,
-};
-use futures::future::BoxFuture;
-use glyph_brush_layout::{
-    ab_glyph::{Font, FontArc, FontRef, ScaleFont},
-    FontId, GlyphPositioner, HorizontalAlign, Layout, SectionGeometry, SectionText, VerticalAlign,
-};
 use jni::{
     objects::{GlobalRef, JClass},
     JavaVM,
@@ -24,7 +18,7 @@ use jni::{
 use serde_json as json;
 use settings_schema::Switch;
 use std::{
-    future, mem, ptr, slice,
+    future, mem,
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc as smpsc, Arc,
@@ -239,6 +233,10 @@ async fn connection_pipeline(
         session_desc.to_settings()
     };
 
+    *STATISTICS_MANAGER.lock() = Some(StatisticsManager::new(
+        settings.connection.statistics_history_size as _,
+    ));
+
     let stream_socket_builder = StreamSocketBuilder::listen_for_server(
         settings.connection.stream_port,
         settings.connection.stream_protocol,
@@ -379,6 +377,31 @@ async fn connection_pipeline(
                     .send_buffer(socket_sender.new_buffer(&input, 0)?)
                     .await
                     .ok();
+
+                // Note: this is not the best place to report the acquired input. Instead it should
+                // be done as soon as possible (or even just before polling the input). Instead this
+                // is reported late to partially compensate for lack of network latency measurement,
+                // so the server can just use total_pipeline_latency as the postTimeoffset.
+                // This hack will be removed once poseTimeOffset can be calculated more accurately.
+                if let Some(stats) = &mut *STATISTICS_MANAGER.lock() {
+                    stats.report_input_acquired(input.target_timestamp);
+                }
+            }
+
+            Ok(())
+        }
+    };
+
+    let statistics_send_loop = {
+        let mut socket_sender = stream_socket.request_stream(STATISTICS).await?;
+        async move {
+            let (data_sender, mut data_receiver) = tmpsc::unbounded_channel();
+            *STATISTICS_SENDER.lock() = Some(data_sender);
+            while let Some(stats) = data_receiver.recv().await {
+                socket_sender
+                    .send_buffer(socket_sender.new_buffer(&stats, 0)?)
+                    .await
+                    .ok();
             }
 
             Ok(())
@@ -483,6 +506,12 @@ async fn connection_pipeline(
                     &mem::transmute::<_, [u8; mem::size_of::<VideoFrame>()]>(header)
                 });
                 buffer[mem::size_of::<VideoFrame>()..].copy_from_slice(&packet.buffer);
+
+                if let Some(stats) = &mut *STATISTICS_MANAGER.lock() {
+                    stats.report_video_packet_received(Duration::from_nanos(
+                        packet.header.tracking_frame_index,
+                    ));
+                }
 
                 legacy_receive_data_sender.lock().await.send(buffer).ok();
             }
@@ -720,6 +749,7 @@ async fn connection_pipeline(
         res = spawn_cancelable(playspace_sync_loop) => res,
         res = spawn_cancelable(input_send_loop) => res,
         res = spawn_cancelable(time_sync_send_loop) => res,
+        res = spawn_cancelable(statistics_send_loop) => res,
         res = spawn_cancelable(video_error_report_send_loop) => res,
         res = spawn_cancelable(views_config_send_loop) => res,
         res = spawn_cancelable(battery_send_loop) => res,

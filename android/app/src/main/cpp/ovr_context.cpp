@@ -34,6 +34,8 @@ using namespace gl_render_utils;
 
 void (*inputSend)(TrackingInfo data);
 void (*timeSyncSend)(TimeSync data);
+void (*reportSubmit)(unsigned long long targetTimestampNs, unsigned long long vsyncQueueNs);
+unsigned long long (*getPredictionOffsetNs)();
 void (*videoErrorReportSend)();
 void (*viewsConfigSend)(EyeFov fov[2], float ipd_m);
 void (*batterySend)(unsigned long long device_path, float gauge_value, bool is_plugged);
@@ -535,7 +537,7 @@ std::pair<EyeFov, EyeFov> getFov() {
 // Called from TrackingThread
 void sendTrackingInfo(bool clientsidePrediction) {
     // vrapi_GetTimeInSeconds doesn't match getTimestampUs
-    uint64_t targetTimestampNs = vrapi_GetTimeInSeconds() * 1e9 + LatencyCollector::Instance().getTrackingPredictionLatency() * 1000;
+    uint64_t targetTimestampNs = vrapi_GetTimeInSeconds() * 1e9 + getPredictionOffsetNs();
     auto tracking = vrapi_GetPredictedTracking2(g_ctx.Ovr, (double)targetTimestampNs / 1e9);
 
     // sort of hacky, SteamVR will predict the position while the orientation is predicted from the client
@@ -829,6 +831,9 @@ void renderNative(long long targetTimespampNs) {
 
     LatencyCollector::Instance().rendered2(targetTimespampNs);
 
+    double vsyncQueueS = vrapi_GetPredictedDisplayTime(g_ctx.Ovr, g_ctx.ovrFrameIndex) - vrapi_GetTimeInSeconds();
+    reportSubmit(targetTimespampNs, vsyncQueueS * 1e9);
+
     const ovrLayerHeader2 *layers2[] =
             {
                     &worldLayer.Header
@@ -846,7 +851,7 @@ void renderNative(long long targetTimespampNs) {
 
     LatencyCollector::Instance().submit(targetTimespampNs);
     // TimeSync here might be an issue but it seems to work fine
-    sendTimeSync();
+    // sendTimeSync();
 }
 
 void updateLoadingTexuture(const unsigned char *data) {

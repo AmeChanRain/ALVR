@@ -4,6 +4,7 @@ mod connection;
 mod connection_utils;
 mod logging_backend;
 mod storage;
+mod statistics;
 
 #[cfg(target_os = "android")]
 mod permission;
@@ -47,6 +48,10 @@ use tokio::{runtime::Runtime, sync::mpsc, sync::Notify};
 // ndk-glue instead
 static GLOBAL_CONTEXT: OnceCell<GlobalRef> = OnceCell::new();
 static DECODER_REF: Lazy<Mutex<Option<GlobalRef>>> = Lazy::new(|| Mutex::new(None));
+
+    static ref STATISTICS_MANAGER: Mutex<Option<StatisticsManager>> = Mutex::new(None);
+    static ref STATISTICS_SENDER: Mutex<Option<mpsc::UnboundedSender<ClientStatistics>>> =
+        Mutex::new(None);
 
 static RUNTIME: Lazy<Mutex<Option<Runtime>>> = Lazy::new(|| Mutex::new(None));
 static IDR_PARSED: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
@@ -518,6 +523,27 @@ pub fn initialize() {
             };
 
             sender.send(time_sync).ok();
+        }
+    }
+
+    extern "C" fn report_submit(target_timestamp_ns: u64, vsync_queue_ns: u64) {
+        if let Some(stats) = &mut *STATISTICS_MANAGER.lock() {
+            let timestamp = Duration::from_nanos(target_timestamp_ns);
+            stats.report_submit(timestamp, Duration::from_nanos(vsync_queue_ns));
+
+            if let Some(sender) = &*STATISTICS_SENDER.lock() {
+                if let Some(stats) = stats.summary(timestamp) {
+                    sender.send(stats).ok();
+                }
+            }
+        }
+    }
+
+    extern "C" fn get_prediction_offset_ns() -> u64 {
+        if let Some(stats) = &*STATISTICS_MANAGER.lock() {
+            stats.average_total_pipeline_latency().as_nanos() as _
+        } else {
+            0
         }
     }
 

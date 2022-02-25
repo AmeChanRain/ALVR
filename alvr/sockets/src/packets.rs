@@ -11,6 +11,7 @@ pub const INPUT: u16 = 0; // tracking and buttons
 pub const HAPTICS: u16 = 1;
 pub const AUDIO: u16 = 2;
 pub const VIDEO: u16 = 3;
+pub const STATISTICS: u16 = 4;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ClientHandshakePacket {
@@ -211,4 +212,13 @@ pub enum ClientListAction {
     AddIfMissing { display_name: String },
     TrustAndMaybeAddIp(Option<IpAddr>),
     RemoveIpOrEntry(Option<IpAddr>),
+}
+
+#[derive(Serialize, Deserialize, Default, Clone)]
+pub struct ClientStatistics {
+    pub target_timestamp: Duration, // identifies the frame
+    pub video_decode: Duration,
+    pub rendering: Duration,
+    pub vsync_queue: Duration,
+    pub total_pipeline_latency: Duration,
 }

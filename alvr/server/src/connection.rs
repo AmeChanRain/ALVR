@@ -923,6 +923,27 @@ async fn connection_pipeline() -> StrResult {
         }
     };
 
+    let statistics_receive_loop = {
+        let mut receiver = stream_socket
+            .subscribe_to_stream::<ClientStatistics>(STATISTICS)
+            .await?;
+        async move {
+            loop {
+                let stats = receiver.recv().await?.header;
+
+                let stats = ClientStats {
+                    targetTimestampNs: stats.target_timestamp.as_nanos() as _,
+                    videoDecodeNs: stats.video_decode.as_nanos() as _,
+                    renderingNs: stats.rendering.as_nanos() as _,
+                    vsyncQueueNs: stats.vsync_queue.as_nanos() as _,
+                    totalPipelineLatencyNs: stats.total_pipeline_latency.as_nanos() as _,
+                };
+
+                unsafe { crate::ReportClientStatistics(stats) };
+            }
+        }
+    };
+
     let (playspace_sync_sender, playspace_sync_receiver) = smpsc::channel::<Vec2>();
 
     let is_tracking_ref_only = settings.headset.tracking_ref_only;
@@ -1041,6 +1062,7 @@ async fn connection_pipeline() -> StrResult {
         res = spawn_cancelable(microphone_loop) => res,
         res = spawn_cancelable(video_send_loop) => res,
         res = spawn_cancelable(time_sync_send_loop) => res,
+        res = spawn_cancelable(statistics_receive_loop) => res,
         res = spawn_cancelable(haptics_send_loop) => res,
         res = spawn_cancelable(input_receive_loop) => res,
 
