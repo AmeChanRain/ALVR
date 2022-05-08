@@ -80,14 +80,14 @@ fn set_loading_message(hostname: &str, message: &str) {
         *ALVR_VERSION,
     );
 
-    let ubuntu_font =
-        FontRef::try_from_slice(include_bytes!("../resources/Ubuntu-Medium.ttf")).unwrap();
+    let color_font =
+        FontRef::try_from_slice(include_bytes!("../resources/OPPOSans-M.ttf")).unwrap();
 
     let section_glyphs = Layout::default()
         .h_align(HorizontalAlign::Center)
         .v_align(VerticalAlign::Center)
         .calculate_glyphs(
-            &[&ubuntu_font],
+            &[&color_font],
             &SectionGeometry {
                 screen_position: (
                     LOADING_TEXTURE_WIDTH as f32 / 2_f32,
@@ -102,7 +102,7 @@ fn set_loading_message(hostname: &str, message: &str) {
             }],
         );
 
-    let scaled_font = ubuntu_font.as_scaled(FONT_SIZE);
+    let scaled_font = color_font.as_scaled(FONT_SIZE);
 
     let mut buffer = vec![0_u8; LOADING_TEXTURE_WIDTH * LOADING_TEXTURE_HEIGHT * 4];
 
