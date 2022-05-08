@@ -40,18 +40,18 @@ use tokio::{
 #[cfg(target_os = "android")]
 use crate::audio;
 
-const INITIAL_MESSAGE: &str = "Searching for server...\n(open ALVR on your PC)";
-const NETWORK_UNREACHABLE_MESSAGE: &str = "Cannot connect to the internet";
-const CLIENT_UNTRUSTED_MESSAGE: &str = "On the PC, click \"Trust\"\nnext to the client entry";
+const INITIAL_MESSAGE: &str = "正在寻找VR服务端...\n(请在电脑上打开ALVR)";
+const NETWORK_UNREACHABLE_MESSAGE: &str = "无法连接到互联网";
+const CLIENT_UNTRUSTED_MESSAGE: &str = "请在电脑上点击ALVR服务端的 \"信任\"\n它位于服务端列表的旁边";
 const INCOMPATIBLE_VERSIONS_MESSAGE: &str = concat!(
-    "Server and client have\n",
-    "incompatible types.\n",
-    "Please update either the app\n",
-    "on the PC or on the headset"
+    "VR服务端和客户端\n",
+    "不兼容.\n",
+    "请把PC服务端端与头显的客户端APP\n",
+    "升级到最新版本"
 );
-const STREAM_STARTING_MESSAGE: &str = "The stream will begin soon\nPlease wait...";
-const SERVER_RESTART_MESSAGE: &str = "The server is restarting\nPlease wait...";
-const SERVER_DISCONNECTED_MESSAGE: &str = "The server has disconnected.";
+const STREAM_STARTING_MESSAGE: &str = "串流即将开始\n请稍等...";
+const SERVER_RESTART_MESSAGE: &str = "服务端重启中\n请稍等...";
+const SERVER_DISCONNECTED_MESSAGE: &str = "服务端已断线.";
 
 const CONTROL_CONNECT_RETRY_PAUSE: Duration = Duration::from_millis(500);
 const RETRY_CONNECT_MIN_INTERVAL: Duration = Duration::from_secs(1);
